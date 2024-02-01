@@ -3,19 +3,6 @@
 ## Introduction
 This project utilizes MapReduce to perform a comprehensive analysis of movie ratings and to build a movie recommendation system. By leveraging MapReduce's distributed data processing, we can efficiently handle large datasets, such as the Netflix prize data, to compute various statistical functions and generate personalized movie recommendations.
 
-## Statistical Functions
-Our Hadoop MapReduce application provides insights into movie ratings through the following statistical analyses:
-
-- **Histogram:** Displays the frequency distribution of ratings for each movie, enabling a visual representation of a movie's overall rating spread.
-- **Mean:** Calculates the average rating for each movie, offering a measure of general approval.
-- **Median:** Determines the middle value of ratings for each movie, which helps to understand the central tendency of the data.
-- **Mode and Count:** Identifies the most common rating for each movie and counts its occurrences, which can be insightful for understanding the most agreed-upon rating.
-- **Standard Deviation:** Computes the standard deviation of ratings for each movie, illustrating the variability or dispersion of ratings.
-- **Average Ratings per User:** Analyzes the average ratings given by each user, shedding light on user rating behaviors.
-- **Group by Genres:** Categorizes movies into genres and performs analyses within these categories to identify genre-specific trends.
-- **Group Users by Month:** Segregates user ratings by the month they were submitted, allowing for temporal analysis of rating patterns.
-- **Group Users by Year:** Similar to monthly grouping, but provides insights into yearly changes in user rating behaviors.
-
 ## Movie Recommendation System
 ### Overview
 The recommendation system employs the Apriori frequent itemset mining algorithm within a MapReduce framework to uncover relationships between movies based on user ratings. By identifying sets of movies that frequently appear together in user rating patterns, we can recommend new movies to a user that they are likely to enjoy.
