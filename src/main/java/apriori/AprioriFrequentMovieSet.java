@@ -93,6 +93,12 @@ public class AprioriFrequentMovieSet extends Configured implements Tool {
       logger.error("Job 1 did not complete successfully.");
       return 1;
     }
+
+    Counter movieSetCounter = setupAndRunJob2(inputDir, outputDir + "/iteration_1", userCount);
+    if (movieSetCounter == null) {
+      logger.error("Job 2 did not complete successfully.");
+      return 1;
+    }
     return 0;
   }
 
@@ -102,6 +108,14 @@ public class AprioriFrequentMovieSet extends Configured implements Tool {
     configureJob1(job, inputPath, outputPath);
     boolean completion = job.waitForCompletion(true);
     return completion ? (int) job.getCounters().findCounter(Constants.Counters.USER_COUNT).getValue() : -1;
+  }
+
+  private Counter setupAndRunJob2(String inputPath, String outputPath, int userCount) throws Exception {
+    Job job = Job.getInstance(getConf(), "Calculate Movie List Support and Aggregate");
+    job.setJarByClass(AprioriFrequentMovieSet.class);
+    configureJob2(job, inputPath, outputPath, userCount);
+    boolean completion = job.waitForCompletion(true);
+    return completion ? job.getCounters().findCounter(Constants.Counters.MOVIE_SET_COUNT) : null;
   }
 
   private void configureJob1(Job job, String inputPath, String outputPath) throws Exception {
@@ -121,5 +135,32 @@ public class AprioriFrequentMovieSet extends Configured implements Tool {
 
     FileInputFormat.addInputPath(job, new Path(inputPath));
     FileOutputFormat.setOutputPath(job, new Path(outputPath));
+  }
+
+  private void configureJob2(Job job, String inputPath, String outputPath, int userCount) throws Exception {
+    Configuration jobConf = job.getConfiguration();
+    jobConf.set("textinputformat.record.delimiter", "\n\n");
+    jobConf.setDouble(Constants.SUPPORT_THRESHOLD, SUPPORT_THRESHOLD);
+    jobConf.setInt(Constants.TOTAL_USERS, userCount);
+    jobConf.setBoolean(Constants.IS_LOCAL, IS_LOCAL);
+    jobConf.set(Constants.BUCKET_NAME, BUCKET_NAME);
+    jobConf.setInt(Constants.CURRENT_ITERATION, 1);
+    jobConf.setInt(Constants.MAX_USER_ID, MAX_USER_ID);
+    jobConf.setInt(Constants.MAX_MOVIE_ID, MAX_MOVIE_ID);
+
+    job.setMapperClass(MovieSupportFilterMapper.class);
+    job.setReducerClass(UserMovieAggregationReducer.class);
+
+    job.setOutputKeyClass(Text.class);
+    job.setOutputValueClass(Text.class);
+
+    job.setInputFormatClass(TextInputFormat.class);
+    job.setOutputFormatClass(TextOutputFormat.class);
+
+    FileInputFormat.addInputPath(job, new Path(inputPath));
+    FileOutputFormat.setOutputPath(job, new Path(outputPath));
+
+    MultipleOutputs.addNamedOutput(job, Constants.MOVIES_DIR, TextOutputFormat.class, LongWritable.class, Text.class);
+    MultipleOutputs.addNamedOutput(job, Constants.USERS_DIR, TextOutputFormat.class, LongWritable.class, Text.class);
   }
 }
