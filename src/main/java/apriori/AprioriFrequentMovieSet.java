@@ -99,6 +99,12 @@ public class AprioriFrequentMovieSet extends Configured implements Tool {
       logger.error("Job 2 did not complete successfully.");
       return 1;
     }
+
+    boolean success = setupAndRunJob3(outputDir, outputDir, 2);
+    if (!success) {
+      logger.error("Job 3 did not complete successfully.");
+      return 1;
+    }
     return 0;
   }
 
@@ -116,6 +122,13 @@ public class AprioriFrequentMovieSet extends Configured implements Tool {
     configureJob2(job, inputPath, outputPath, userCount);
     boolean completion = job.waitForCompletion(true);
     return completion ? job.getCounters().findCounter(Constants.Counters.MOVIE_SET_COUNT) : null;
+  }
+
+  private boolean setupAndRunJob3(String inputPath, String outputPath, int iteration) throws Exception {
+    Job job = Job.getInstance(getConf(), "Candidate Movie Set Generation: Iteration " + iteration);
+    job.setJarByClass(AprioriFrequentMovieSet.class);
+    configureJob3(job, inputPath, outputPath, iteration);
+    return job.waitForCompletion(true);
   }
 
   private void configureJob1(Job job, String inputPath, String outputPath) throws Exception {
@@ -162,5 +175,51 @@ public class AprioriFrequentMovieSet extends Configured implements Tool {
 
     MultipleOutputs.addNamedOutput(job, Constants.MOVIES_DIR, TextOutputFormat.class, LongWritable.class, Text.class);
     MultipleOutputs.addNamedOutput(job, Constants.USERS_DIR, TextOutputFormat.class, LongWritable.class, Text.class);
+  }
+
+  private void configureJob3(Job job, String inputPath, String outputPath, int iteration) throws Exception {
+    Configuration jobConf = job.getConfiguration();
+    jobConf.setBoolean(Constants.IS_LOCAL, IS_LOCAL);
+    jobConf.set(Constants.BUCKET_NAME, BUCKET_NAME);
+    jobConf.setInt(Constants.CURRENT_ITERATION, iteration);
+
+    job.setMapperClass(CandidateSetGeneratorMapper.class);
+    job.setReducerClass(MovieSetFinalizerReducer.class);
+
+    job.setOutputKeyClass(Text.class);
+    job.setOutputValueClass(NullWritable.class);
+
+    job.setInputFormatClass(TextInputFormat.class);
+    job.setOutputFormatClass(TextOutputFormat.class);
+
+    // Determine input and output paths based on whether the operation is local or S3
+    String interPath = outputPath + Constants.FILE_SEPARATOR + Constants.ITERATION_PREFIX + (iteration - 1) + Constants.FILE_SEPARATOR + Constants.MOVIE_SETS_PATH;
+    TextInputFormat.addInputPaths(job, interPath);
+    FileOutputFormat.setOutputPath(job, new Path(outputPath + Constants.FILE_SEPARATOR + Constants.JOIN_ITERATION_PREFIX + iteration));
+
+    // Handle cache files
+    if (IS_LOCAL) {
+      File dir = new File(interPath);
+      if (dir.exists()) {
+        for (String path : dir.list()) {
+          if (!path.endsWith(Constants.CRC_EXTENSION) && !path.startsWith(Constants.SUCCESS_FILE)) {
+            job.addCacheFile(new URI(interPath + Constants.FILE_SEPARATOR + path));
+          }
+        }
+      }
+    } else {
+      final AmazonS3 s3Client = AmazonS3ClientBuilder.standard().withRegion(Regions.US_EAST_1).build();
+      ListObjectsRequest listObjectsRequest = new ListObjectsRequest().withBucketName(BUCKET_NAME_STRING).withPrefix(interPath);
+      ObjectListing objects = s3Client.listObjects(listObjectsRequest);
+      for (S3ObjectSummary summary : objects.getObjectSummaries()) {
+        String path = summary.getKey();
+        if (!path.endsWith(Constants.CRC_EXTENSION) && !path.startsWith(Constants.SUCCESS_FILE)) {
+          logger.info("Added File " + BUCKET_NAME + Constants.FILE_SEPARATOR + path);
+          job.addCacheFile(new URI(BUCKET_NAME + Constants.FILE_SEPARATOR + path));
+        }
+      }
+    }
+
+    job.getCacheFiles();
   }
 }
