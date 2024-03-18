@@ -21,7 +21,12 @@ public class Constants {
   public static final String MOVIE_SETS_PATH = "movie_sets";
   public static final String MOVIE_SETS_PART_PATH = MOVIE_SETS_PATH + File.separator + "part";
   public static final String USERS_PART_PATH = "users" + File.separator + "part";
+  public static final String NEXT_ITER_USERS = "nextIterUsers";
+  public static final String JOIN_FILE_PREFIX = "join_";
   public static final String OUTPUT_CONFIDENCES = "confidences";
+  public static final String OUTPUT_CONFIDENCES_PART = OUTPUT_CONFIDENCES + File.separator + "part";
+  public static final String OUTPUT_FREQUENCY_MOVIE_SETS = "frequencyMovieSets";
+  public static final String NEXT_ITER_MOVIE_SETS = "nextIterMovieSets";
 
   public enum Counters {
     USER_COUNT, MOVIE_SET_COUNT

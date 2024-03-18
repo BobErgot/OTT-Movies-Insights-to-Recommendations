@@ -100,11 +100,27 @@ public class AprioriFrequentMovieSet extends Configured implements Tool {
       return 1;
     }
 
-    boolean success = setupAndRunJob3(outputDir, outputDir, 2);
-    if (!success) {
-      logger.error("Job 3 did not complete successfully.");
-      return 1;
-    }
+    int iteration = 2;
+    do {
+      boolean success = setupAndRunJob3(outputDir, outputDir, iteration);
+      if (!success) {
+        logger.error("Job 3 did not complete successfully.");
+        return 1;
+      }
+
+      Job job4 = Job.getInstance(getConf(), "Association Rule Mining Iteration " + iteration);
+      job4.setJarByClass(AprioriFrequentMovieSet.class);
+      configureJob4(job4, outputDir, outputDir, userCount, iteration);
+      success = job4.waitForCompletion(true);
+      if (!success) {
+        logger.error("Job 4 did not complete successfully.");
+        return 1;
+      }
+
+      movieSetCounter = job4.getCounters().findCounter(Constants.Counters.MOVIE_SET_COUNT);
+      iteration++;
+    } while (movieSetCounter.getValue() > 1 && iteration <= MAX_ITERATION);
+
     return 0;
   }
 
@@ -221,5 +237,80 @@ public class AprioriFrequentMovieSet extends Configured implements Tool {
     }
 
     job.getCacheFiles();
+  }
+
+  private void configureJob4(Job job, String inputPath, String outputPath, int userCount, int iteration) throws Exception {
+    Configuration jobConf = job.getConfiguration();
+    jobConf.setInt(Constants.CURRENT_ITERATION, iteration); // This should be dynamic based on the actual iteration
+    jobConf.setDouble(Constants.SUPPORT_THRESHOLD, SUPPORT_THRESHOLD);
+    jobConf.setInt(Constants.TOTAL_USERS, userCount);
+    jobConf.setBoolean(Constants.IS_LOCAL, IS_LOCAL);
+    jobConf.set(Constants.BUCKET_NAME, BUCKET_NAME);
+
+    job.setMapperClass(CandidateSupportMapper.class);
+    job.setReducerClass(AssociationRuleReducer.class);
+
+    job.setOutputKeyClass(Text.class);
+    job.setOutputValueClass(DoubleWritable.class);
+
+    job.setInputFormatClass(TextInputFormat.class);
+    job.setOutputFormatClass(TextOutputFormat.class);
+
+    // Determine input and output paths based on whether the operation is local or S3
+    String interPath = outputPath + Constants.FILE_SEPARATOR + Constants.ITERATION_PREFIX + (iteration - 1) + Constants.FILE_SEPARATOR + Constants.USERS_DIR;
+    TextInputFormat.addInputPaths(job, interPath);
+    FileOutputFormat.setOutputPath(job, new Path(outputPath + Constants.FILE_SEPARATOR + Constants.ITERATION_PREFIX + iteration));
+
+    // Handle cache files
+    String joinDirectory = outputPath + Constants.FILE_SEPARATOR + Constants.JOIN_ITERATION_PREFIX + iteration;
+    if (IS_LOCAL) {
+      File dir = new File(joinDirectory);
+      if (dir.exists()) {
+        for (String path : dir.list()) {
+          if (!path.endsWith(Constants.CRC_EXTENSION) && !path.startsWith(Constants.SUCCESS_FILE)) {
+            job.addCacheFile(new URI(joinDirectory + Constants.FILE_SEPARATOR + path));
+          }
+        }
+      }
+    } else {
+      final AmazonS3 s3Client = AmazonS3ClientBuilder.standard().withRegion(Regions.US_EAST_1).build();
+      ListObjectsRequest listObjectsRequest = new ListObjectsRequest().withBucketName(BUCKET_NAME_STRING).withPrefix(joinDirectory);
+      ObjectListing objects = s3Client.listObjects(listObjectsRequest);
+      for (S3ObjectSummary summary : objects.getObjectSummaries()) {
+        String path = summary.getKey();
+        if (!path.endsWith(Constants.CRC_EXTENSION) && !path.startsWith(Constants.SUCCESS_FILE)) {
+          logger.info("Added File " + BUCKET_NAME + Constants.FILE_SEPARATOR + path);
+          job.addCacheFile(new URI(BUCKET_NAME + Constants.FILE_SEPARATOR + path));
+        }
+      }
+    }
+
+    String movieDirectory = outputPath + Constants.FILE_SEPARATOR + Constants.ITERATION_PREFIX + (iteration - 1) + Constants.FILE_SEPARATOR + Constants.MOVIE_SETS_PATH;
+
+    if (IS_LOCAL) {
+      for (String path : new File(movieDirectory).list()) {
+        if (!path.endsWith(Constants.CRC_EXTENSION) && !path.startsWith(Constants.SUCCESS_FILE)) {
+          job.addCacheFile(new URI(movieDirectory + Constants.FILE_SEPARATOR + path));
+        }
+      }
+    } else {
+      final AmazonS3 s3Client = AmazonS3ClientBuilder.standard().withRegion(Regions.US_EAST_1).build();
+
+      ListObjectsRequest listObjectsRequest = new ListObjectsRequest().withBucketName(BUCKET_NAME_STRING).withPrefix(movieDirectory);
+      ObjectListing objects = s3Client.listObjects(listObjectsRequest);
+      for (S3ObjectSummary summary : objects.getObjectSummaries()) {
+        String path = summary.getKey();
+        if (!path.endsWith(Constants.CRC_EXTENSION) && !path.endsWith(Constants.SUCCESS_FILE)) {
+          logger.info("ADDED FILE " + BUCKET_NAME + Constants.FILE_SEPARATOR + path);
+          job.addCacheFile(new URI(BUCKET_NAME + Constants.FILE_SEPARATOR + path));
+        }
+      }
+    }
+
+    job.getCacheFiles();
+
+    MultipleOutputs.addNamedOutput(job, Constants.OUTPUT_FREQUENCY_MOVIE_SETS, TextOutputFormat.class, LongWritable.class, Text.class);
+    MultipleOutputs.addNamedOutput(job, Constants.NEXT_ITER_MOVIE_SETS, TextOutputFormat.class, LongWritable.class, Text.class);
+    MultipleOutputs.addNamedOutput(job, Constants.NEXT_ITER_USERS, TextOutputFormat.class, LongWritable.class, Text.class);
   }
 }
