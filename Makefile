@@ -11,7 +11,7 @@ local.output ?= output
 local.iterations ?= 17770
 local.movieId ?= 17770
 local.userId ?= 2649429
-local.threshold ?=
+local.threshold ?= 0.1
 local.log=log
 # Pseudo-Cluster Execution
 hdfs.user.name=bob

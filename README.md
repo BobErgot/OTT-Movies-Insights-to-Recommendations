@@ -1,5 +1,10 @@
 #  OTT Movies: From Insights to Recommendations
 
+## Project Overview
+For a brief overview of the project and insights into the results, please refer to the 
+[`Project_Overview.pdf`](./Project_Overview.pdf) file available in this repository. The document 
+includes comprehensive information about the project scope, methodologies employed, and the outcomes of the analysis.
+
 ## Introduction
 This project utilizes MapReduce to perform a comprehensive analysis of movie ratings and to build a movie recommendation system. By leveraging MapReduce's distributed data processing, we can efficiently handle large datasets, such as the Netflix prize data, to compute various statistical functions and generate personalized movie recommendations.
 
@@ -117,7 +122,7 @@ All of the build & execution commands are organized in the Makefile.
 	- `make aws`					-- check for successful execution with web interface (aws.amazon.com)
 	- `download-output-aws`		-- after successful execution & termination
 
-Author
+Contributors
 -----------
 - [Bobby Doshi](https://github.com/BobErgot)
 - [Anant Moudgalya](https://github.com/anantmoudgalya)
